@@ -2,8 +2,12 @@
 
 int main(int argc, char **argv){
     if (argc <= 1){
-        printf("Not enough arguments given.");
+        printf("Not enough arguments given.\n");
         return -1;
+    }
+
+    for (int i = 1; i < argc; i++){
+        printf("%s\n", argv[i]);
     }
 
     return 0;
