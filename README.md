@@ -8,3 +8,24 @@ Acronym of "**C** **I**mage manipulator with **M**ulti-**T**hreading and **H**ar
 - I want to learn more about C
 - I want to learn about multithreading
 - Why not
+
+## Planned Features
+
+- Pixel Sorting
+- Edge Detection
+    - Horziontal
+    - Vertical
+    - Sobel operator
+    - Canny
+    - Kovalevsky
+- Blurring
+    - Box
+    - Gaussian
+- Making an image greyscale
+- Making a mask of an image
+- Image resizing (up and down)
+    - Nearest-neighbour
+    - Box Sampling
+    - Bilinear
+    - Bicubic
+- Image cropping
