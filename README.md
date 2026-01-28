@@ -13,7 +13,7 @@ Acronym of "**C** **I**mage manipulator with **M**ulti-**T**hreading and **H**ar
 
 - Pixel Sorting
 - Edge Detection
-    - Horziontal
+    - Horizontal
     - Vertical
     - Sobel operator
     - Canny
