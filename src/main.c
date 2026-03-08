@@ -122,7 +122,10 @@ int main(int argc, char **argv){
 
     image = boxBlur(image, state);
 
-    stbi_write_png(state.output_file, state.width, state.height, 4, image, state.width * 4);
+    if (image != NULL){
+        stbi_write_png(state.output_file, state.width, state.height, 4, image, state.width * 4);
+    }
+
     stbi_image_free(original_pointer);
 
     return 0;
@@ -179,7 +182,7 @@ unsigned char* boxBlurSingleThread(unsigned char* image, struct OperationState* 
 
     if (!blurred){
         printf("Failed to allocate memory for image in heap.");
-        return image;
+        return NULL;
     }
 
     for (int p = 0; p < passes; p++){
