@@ -72,20 +72,22 @@ struct OperationState parseArguments(int argc, char** argv, int* status){
         return state;
     } else if (strcmp(argv[1], "--mode=box-blur") == 0){
         state.mode = BLUR_BOX;
+    } else if (strcmp(argv[1], "--mode=gaussian-blur") == 0){
+        state.mode = BLUR_GAUSSIAN;
+    }
 
-        if (argc > 5 && (strcmp(argv[2], "--single-threaded") == 0 || strcmp(argv[2], "-s") == 0)){
-            state.algo = SINGLE_THREAD;
-            state.arg1 = atoi(argv[3]);
-            state.arg2 = 1;
-            state.input_file = argv[4];
-            state.output_file = argv[5];
-            state.include_alpha = 0;
-            *status = 0;
-        } else{
-            printf("Not enough arguments were given. Please see the input formatting with 'cimth --help' or 'cimth -h'\n");
-            *status = -1;
-            return state;
-        }
+    if (argc > 5 && (strcmp(argv[2], "--single-threaded") == 0 || strcmp(argv[2], "-s") == 0)){
+        state.algo = SINGLE_THREAD;
+        state.arg1 = atoi(argv[3]);
+        state.arg2 = 1;
+        state.input_file = argv[4];
+        state.output_file = argv[5];
+        state.include_alpha = 0;
+        *status = 0;
+    } else{
+        printf("Not enough arguments were given. Please see the input formatting with 'cimth --help' or 'cimth -h'\n");
+        *status = -1;
+        return state;
     }
 
     return state;
@@ -108,6 +110,7 @@ void testPrintPixelData(unsigned char* image, struct OperationState* state){
 int main(int argc, char **argv){
     //function declaration
     unsigned char* boxBlur(unsigned char*, struct OperationState);
+    unsigned char* gaussianBlur(unsigned char*, struct OperationState);
 
     int status;
     struct OperationState state = parseArguments(argc, argv, &status);
@@ -120,7 +123,15 @@ int main(int argc, char **argv){
     unsigned char* image = stbi_load(state.input_file, &state.width, &state.height, &state.colour_channels, 4);
     unsigned char* original_pointer = image;
 
-    image = boxBlur(image, state);
+    switch (state.mode){
+        case BLUR_BOX: 
+            image = boxBlur(image, state);
+            break;
+        case BLUR_GAUSSIAN:
+            image = gaussianBlur(image, state);
+            break;
+        default: break;
+    }
 
     if (image != NULL){
         stbi_write_png(state.output_file, state.width, state.height, 4, image, state.width * 4);
@@ -172,7 +183,7 @@ void applyKernelToPixel(unsigned char* original, unsigned char* altered, int* ke
                 green += original[(col + x + (row + y) * width) * 4 + 1] * kernel[x + kernel_size + (y + kernel_size) * kernel_size];
                 blue += original[(col + x + (row + y) * width) * 4 + 2] * kernel[x + kernel_size + (y + kernel_size) * kernel_size];
                 alpha += original[(col + x + (row + y) * width) * 4 + 3] * kernel[x + kernel_size + (y + kernel_size) * kernel_size];
-                pixel_count++;
+                pixel_count += 1 * kernel[x + kernel_size + (y + kernel_size) * kernel_size];
             }
         }
     }
@@ -197,6 +208,42 @@ unsigned char* boxBlur(unsigned char* image, struct OperationState state){
     //set kernel contents to be all 1 as every pixel in box blur has same weighting
     for (int i = 0; i < total_kernel_size; i++){
         kernel[i] = 1;
+    }
+
+    switch (state.algo){
+        case MULTI_THREAD: break;
+        case GPU_ACCELERATED: break;
+        default: return applyKernelToImageSingleThread(image, kernel, state.arg1, state.width, state.height, state.arg2);
+    }
+
+    return NULL;
+}
+
+unsigned char* gaussianBlur(unsigned char* image, struct OperationState state){
+    //arg1 of OperationState is kernel_size and arg2 is number of passes to perform
+
+    int total_kernel_size = 4 * state.arg1 * state.arg1 + 4 * state.arg1 + 1;
+    int kernel[total_kernel_size];
+
+    //gaussian kernel generation, probably more efficient ways to do this
+    for (int y = 0; y < state.arg1 * 2 + 1; y++){
+        if (y == 0){
+            kernel[0] = 1;
+        } else if (y <= state.arg1){
+            kernel[y * (state.arg1 * 2 + 1)] = kernel[y * (state.arg1 * 2 + 1) - 1] * 2;
+        } else{
+            kernel[y * (state.arg1 * 2 + 1)] = kernel[y * (state.arg1 * 2 + 1) -1] / 2;
+        }
+
+        for (int x = 1; x < state.arg1 * 2 + 1; x++){
+            if (x <= state.arg1){
+                kernel[x + y * (state.arg1 * 2 + 1)] = 2 * kernel[x + y * (state.arg1 * 2 + 1) - 1];
+            } else{
+                kernel[x + y * (state.arg1 * 2 + 1)] = kernel[x + y * (state.arg1 * 2 + 1) - 1] / 2;
+            }
+
+            printf("%d\n", kernel[x + y * (state.arg1 * 2 + 1)]);
+        }
     }
 
     switch (state.algo){
