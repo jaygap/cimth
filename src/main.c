@@ -131,31 +131,47 @@ int main(int argc, char **argv){
     return 0;
 }
 
+unsigned char* applyKernelToImageSingleThread(unsigned char* original, int* kernel, int kernel_size, int width, int height, int passes){
+    void applyKernelToPixel(unsigned char* original, unsigned char* altered, int* kernel, int kernel_size, int col, int row, int width, int height);
 
-unsigned char* boxBlur(unsigned char* image, struct OperationState state){
-    //arg1 of OperationState is kernel_size and arg2 is number of passes to perform
+    unsigned char* altered = (unsigned char*)malloc(width * height * 4);
 
-    unsigned char* boxBlurSingleThread(unsigned char* image, struct OperationState* state);
+    if (!altered){
+        printf("Failed to allocate for image in heap.");
+        return NULL;
+    }
 
-    switch (state.algo){
-        case MULTI_THREAD: break; //IMPLEMENT THIS
-        case GPU_ACCELERATED: break; //IMPLEMENT THIS
-        default: return boxBlurSingleThread(image, &state);
-    };
+    for (int p = 0; p < passes; p++){
+        for (int y = 0; y < height; y++){
+            for (int x = 0; x < width; x++){
+                if (p % 2 == 0){
+                    applyKernelToPixel(original, altered, kernel, kernel_size, x, y, width, height);
+                } else{
+                    applyKernelToPixel(altered, original, kernel, kernel_size, x, y, width, height);
+                }
+            }
+        }
+    }
 
-    return NULL;
+    if (passes % 2 == 1){
+        memcpy(original, altered, width * height * 4);
+    }
+
+    free(altered);
+
+    return original;
 }
 
-void boxBlurPixel(unsigned char* original, unsigned char* blurred, int col, int row, int width, int height, int kernel_size){
+void applyKernelToPixel(unsigned char* original, unsigned char* altered, int* kernel, int kernel_size, int col, int row, int width, int height){
     unsigned int red = 0, green = 0, blue = 0, alpha = 0, pixel_count = 0;
 
     for (int y = -kernel_size; y <= kernel_size; y++){
         for (int x = -kernel_size; x <= kernel_size; x++){
             if (col + x >= 0 && col + x < width && row + y >= 0 && row + y < height){
-                red += original[(col + x + (row + y) * width) * 4];
-                green += original[(col + x + (row + y) * width) * 4 + 1];
-                blue += original[(col + x + (row + y) * width) * 4 + 2];
-                alpha += original[(col + x + (row + y) * width) * 4 + 3];
+                red += original[(col + x + (row + y) * width) * 4] * kernel[x + kernel_size + (y + kernel_size) * kernel_size];
+                green += original[(col + x + (row + y) * width) * 4 + 1] * kernel[x + kernel_size + (y + kernel_size) * kernel_size];
+                blue += original[(col + x + (row + y) * width) * 4 + 2] * kernel[x + kernel_size + (y + kernel_size) * kernel_size];
+                alpha += original[(col + x + (row + y) * width) * 4 + 3] * kernel[x + kernel_size + (y + kernel_size) * kernel_size];
                 pixel_count++;
             }
         }
@@ -166,42 +182,28 @@ void boxBlurPixel(unsigned char* original, unsigned char* blurred, int col, int 
     blue /= pixel_count;
     alpha /= pixel_count;
 
-    blurred[(col + row * width) * 4] = red;
-    blurred[(col + row * width) * 4 + 1] = green;
-    blurred[(col + row * width) * 4 + 2] = blue;
-    blurred[(col + row * width) * 4 + 3] = alpha;
+    altered[(col + row * width) * 4] = red;
+    altered[(col + row * width) * 4 + 1] = green;
+    altered[(col + row * width) * 4 + 2] = blue;
+    altered[(col + row * width) * 4 + 3] = alpha;
 }
 
-unsigned char* boxBlurSingleThread(unsigned char* image, struct OperationState* state){
-    int width = state->width;
-    int height = state->height;
-    int kernel = state->arg1;
-    int passes = state->arg2;
+unsigned char* boxBlur(unsigned char* image, struct OperationState state){
+    //arg1 of OperationState is kernel_size and arg2 is number of passes to perform
 
-    unsigned char* blurred = (unsigned char*)malloc(width * height * 4);
+    int total_kernel_size = 4 * state.arg1 * state.arg1 + 4 * state.arg1 + 1;
+    int kernel[total_kernel_size];
 
-    if (!blurred){
-        printf("Failed to allocate memory for image in heap.");
-        return NULL;
+    //set kernel contents to be all 1 as every pixel in box blur has same weighting
+    for (int i = 0; i < total_kernel_size; i++){
+        kernel[i] = 1;
     }
 
-    for (int p = 0; p < passes; p++){
-        for (int y = 0; y < height; y++){
-            for (int x = 0; x < width; x++){
-                if (p % 2 == 0){
-                    boxBlurPixel(image, blurred, x, y, width, height, kernel);
-                } else{
-                    boxBlurPixel(blurred, image, x, y, width, height, kernel);
-                }
-            }
-        }
+    switch (state.algo){
+        case MULTI_THREAD: break;
+        case GPU_ACCELERATED: break;
+        default: return applyKernelToImageSingleThread(image, kernel, state.arg1, state.width, state.height, state.arg2);
     }
 
-    if (passes % 2 == 1){
-        memcpy(image, blurred, width * height * 4);
-    }
-
-    free(blurred);
-
-    return image;
+    return NULL;
 }
