@@ -74,14 +74,22 @@ struct OperationState parseArguments(int argc, char** argv, int* status){
         state.mode = BLUR_BOX;
     } else if (strcmp(argv[1], "--mode=gaussian-blur") == 0){
         state.mode = BLUR_GAUSSIAN;
+    } else if (strcmp(argv[1], "--mode=luminance-greyscale") == 0){
+        state.mode = GREYSCALE_LUMINANCE;
+        state.algo = SINGLE_THREAD;
+        state.input_file = argv[2];
+        state.output_file = argv[3];
+        state.include_alpha = 0;
+        *status = 0;
+        return state;
     }
 
     if (argc > 5 && (strcmp(argv[2], "--single-threaded") == 0 || strcmp(argv[2], "-s") == 0)){
         state.algo = SINGLE_THREAD;
         state.arg1 = atoi(argv[3]);
-        state.arg2 = 1;
-        state.input_file = argv[4];
-        state.output_file = argv[5];
+        state.arg2 = atoi(argv[3]);
+        state.input_file = argv[5];
+        state.output_file = argv[6];
         state.include_alpha = 0;
         *status = 0;
     } else{
@@ -111,6 +119,7 @@ int main(int argc, char **argv){
     //function declaration
     unsigned char* boxBlur(unsigned char*, struct OperationState);
     unsigned char* gaussianBlur(unsigned char*, struct OperationState);
+    unsigned char* greyscaleLuminance(unsigned char*, struct OperationState);
 
     int status;
     struct OperationState state = parseArguments(argc, argv, &status);
@@ -129,6 +138,9 @@ int main(int argc, char **argv){
             break;
         case BLUR_GAUSSIAN:
             image = gaussianBlur(image, state);
+            break;
+        case GREYSCALE_LUMINANCE:
+            image = greyscaleLuminance(image, state);
             break;
         default: break;
     }
@@ -241,8 +253,6 @@ unsigned char* gaussianBlur(unsigned char* image, struct OperationState state){
             } else{
                 kernel[x + y * (state.arg1 * 2 + 1)] = kernel[x + y * (state.arg1 * 2 + 1) - 1] / 2;
             }
-
-            printf("%d\n", kernel[x + y * (state.arg1 * 2 + 1)]);
         }
     }
 
@@ -250,6 +260,43 @@ unsigned char* gaussianBlur(unsigned char* image, struct OperationState state){
         case MULTI_THREAD: break;
         case GPU_ACCELERATED: break;
         default: return applyKernelToImageSingleThread(image, kernel, state.arg1, state.width, state.height, state.arg2);
+    }
+
+    return NULL;
+}
+
+
+void applyPerPixelOperation(unsigned char* image, unsigned int* weighting, int index){
+    uint32_t colour = 0;
+
+    colour += (image[index] * weighting[0]);
+    colour += (image[index + 1] * weighting[1]);
+    colour += (image[index + 2] * weighting[2]);
+    colour /= 255;
+    colour = colour & 0xff;
+
+    image[index] = colour;
+    image[index + 1] = colour;
+    image[index + 2] = colour;
+}
+
+unsigned char* applyPerPixelSingleThread(unsigned char* image, unsigned int* weighting, int width, int height){
+    for (int i = 0; i < width * height * 4; i += 4){
+        applyPerPixelOperation(image, weighting, i);
+    }
+
+    return image;
+}
+
+unsigned char* greyscaleLuminance(unsigned char* image, struct OperationState state){
+
+    //hardcoded values of luminance from 0-255
+    unsigned int weighting[] = {54, 182,19};
+
+    switch (state.algo){
+        case MULTI_THREAD: break;
+        case GPU_ACCELERATED: break;
+        default: return applyPerPixelSingleThread(image, weighting, state.width, state.height);
     }
 
     return NULL;
