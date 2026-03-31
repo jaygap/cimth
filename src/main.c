@@ -82,6 +82,14 @@ struct OperationState parseArguments(int argc, char** argv, int* status){
         state.include_alpha = 0;
         *status = 0;
         return state;
+    } else if (strcmp(argv[1], "--mode=brightness-greyscale") == 0){
+        state.mode = GREYSCALE_BRIGHTNESS;
+        state.algo = SINGLE_THREAD;
+        state.input_file = argv[2];
+        state.output_file = argv[3];
+        state.include_alpha = 0;
+        *status = 0;
+        return state;
     }
 
     if (argc > 5 && (strcmp(argv[2], "--single-threaded") == 0 || strcmp(argv[2], "-s") == 0)){
@@ -120,6 +128,7 @@ int main(int argc, char **argv){
     unsigned char* boxBlur(unsigned char*, struct OperationState);
     unsigned char* gaussianBlur(unsigned char*, struct OperationState);
     unsigned char* greyscaleLuminance(unsigned char*, struct OperationState);
+    unsigned char* greyscaleBrightness(unsigned char*, struct OperationState);
 
     int status;
     struct OperationState state = parseArguments(argc, argv, &status);
@@ -142,6 +151,8 @@ int main(int argc, char **argv){
         case GREYSCALE_LUMINANCE:
             image = greyscaleLuminance(image, state);
             break;
+        case GREYSCALE_BRIGHTNESS:
+            image = greyscaleBrightness(image, state);
         default: break;
     }
 
@@ -297,6 +308,32 @@ unsigned char* greyscaleLuminance(unsigned char* image, struct OperationState st
         case MULTI_THREAD: break;
         case GPU_ACCELERATED: break;
         default: return applyPerPixelSingleThread(image, weighting, state.width, state.height);
+    }
+
+    return NULL;
+}
+
+unsigned char* applyBrightnessGreyscaleSingleThread(unsigned char* image, int width, int height){
+    for (int i = 0; i < width * height * 4; i += 4){
+        uint32_t colour = 0;
+
+        colour += image[i] + image[i + 1] + image[i + 2];
+        colour /= 3;
+
+        image[i] = colour & 0xff;
+        image[i + 1] = colour & 0xff;
+        image[i + 2] = colour & 0xff;
+    }
+
+    return image;
+}
+
+unsigned char* greyscaleBrightness(unsigned char* image, struct OperationState state){
+
+    switch (state.algo){
+        case MULTI_THREAD: break;
+        case GPU_ACCELERATED: break;
+        default: return applyBrightnessGreyscaleSingleThread(image, state.width, state.height);
     }
 
     return NULL;
