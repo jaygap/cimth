@@ -167,7 +167,6 @@ int main(int argc, char **argv){
 
     //output is rgba
     unsigned char* image = stbi_load(state.input_file, &state.width, &state.height, &state.colour_channels, 4);
-    unsigned char* original_pointer = image;
 
     switch (state.mode){
         case BLUR_BOX: 
@@ -190,7 +189,7 @@ int main(int argc, char **argv){
         stbi_write_png(state.output_file, state.width, state.height, 4, image, state.width * 4);
     }
 
-    stbi_image_free(original_pointer);
+    stbi_image_free(image);
 
     return 0;
 }
@@ -306,7 +305,6 @@ unsigned char* gaussianBlur(unsigned char* image, struct OperationState state){
     return NULL;
 }
 
-
 void applyPerPixelOperation(unsigned char* image, unsigned int* weighting, int index){
     uint32_t colour = 0;
 
@@ -331,7 +329,7 @@ unsigned char* applyPerPixelSingleThread(unsigned char* image, unsigned int* wei
 
 unsigned char* greyscaleLuminance(unsigned char* image, struct OperationState state){
 
-    //hardcoded values of luminance from 0-255
+    //hardcoded values of weighting of rgb to human eye from 0-255
     unsigned int weighting[] = {54, 182,19};
 
     switch (state.algo){
