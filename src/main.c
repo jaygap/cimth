@@ -117,6 +117,49 @@ struct OperationState parseArguments(int argc, char** argv, int* status){
         state.include_alpha = 0;
         *status = 0;
         return state;
+    } else if (strcmp(argv[1], "--mode=luminance-mask") == 0){
+        state.mode = MASK_LUMINANCE;
+        state.algo = SINGLE_THREAD;
+        state.input_file = argv[2];
+        state.output_file = argv[3];
+        state.include_alpha = 1;
+        *status = 0;
+        return state;
+    } else if (strcmp(argv[1], "--mode=brightness-mask") == 0){
+        state.mode = MASK_BRIGHTNESS;
+        state.algo = SINGLE_THREAD;
+        state.input_file = argv[2];
+        state.output_file = argv[3];
+        state.include_alpha = 1;
+        *status = 0;
+        return state;
+    } else if (strcmp(argv[1], "--mode=red-mask") == 0){
+        state.mode = MASK_RGB;
+        state.algo = SINGLE_THREAD;
+        state.arg1 = 0;
+        state.input_file = argv[2];
+        state.output_file = argv[3];
+        state.include_alpha = 1;
+        *status = 0;
+        return state;
+    } else if (strcmp(argv[1], "--mode=green-mask") == 0){
+        state.mode = MASK_RGB;
+        state.algo = SINGLE_THREAD;
+        state.arg1 = 1;
+        state.input_file = argv[2];
+        state.output_file = argv[3];
+        state.include_alpha = 1;
+        *status = 0;
+        return state;
+    } else if (strcmp(argv[1], "--mode=blue-mask") == 0){
+        state.mode = MASK_RGB;
+        state.algo = SINGLE_THREAD;
+        state.arg1 = 2;
+        state.input_file = argv[2];
+        state.output_file = argv[3];
+        state.include_alpha = 1;
+        *status = 0;
+        return state;
     }
 
     if (argc > 5 && (strcmp(argv[2], "--single-threaded") == 0 || strcmp(argv[2], "-s") == 0)){
@@ -157,6 +200,9 @@ int main(int argc, char **argv){
     unsigned char* greyscaleLuminance(unsigned char*, struct OperationState);
     unsigned char* greyscaleBrightness(unsigned char*, struct OperationState);
     unsigned char* greyscaleRGB(unsigned char*, struct OperationState);
+    unsigned char* maskLuminance(unsigned char* ,struct OperationState);
+    unsigned char* maskBrightness(unsigned char*, struct OperationState);
+    unsigned char* maskRGB(unsigned char*, struct OperationState);
 
     int status;
     struct OperationState state = parseArguments(argc, argv, &status);
@@ -327,10 +373,23 @@ unsigned char* applyPerPixelSingleThread(unsigned char* image, unsigned int* wei
     return image;
 }
 
+unsigned char calcLuminance(unsigned char* colours){
+    unsigned int weighting[] = {54, 182,19};
+    
+    uint32_t colour = 0;
+
+    colour += colours[0] * weighting[0];
+    colour += colours[1] * weighting[1];
+    colour += colours[2] * weighting[2];
+    colour /= 255;
+
+    return colour & 0xff;
+}
+
 unsigned char* greyscaleLuminance(unsigned char* image, struct OperationState state){
 
     //hardcoded values of weighting of rgb to human eye from 0-255
-    unsigned int weighting[] = {54, 182,19};
+    
 
     switch (state.algo){
         case MULTI_THREAD: break;
@@ -379,4 +438,107 @@ unsigned char* greyscaleRGB(unsigned char* image, struct OperationState state){
     }
 
     return NULL;
+}
+
+unsigned char* applyMaskFunctionSingleThreaded(unsigned char* image, unsigned char (*func)(unsigned char*), int threshold, int width, int height){
+    
+}
+
+unsigned char calcOtsuThresholdSingleThread(unsigned char* image, unsigned char (*getProperty)(unsigned char*, int, int), int width, int height){
+    //implement otsu threshold brochacho
+
+    const int range = 256;
+    int histogram[range];
+    float square_variance[range];
+    float weight_background, weight_foreground, mu_background, mu_foreground;
+    float highest_variance = -1;
+    int highest_variance_index = 0;
+
+    // DONT FORGET TO INITALISE ARRAYS !!!
+
+    for (int i = 0; i < range; i++){
+        histogram[i] = 0;
+        square_variance[i] = 0;
+    }
+
+    for (int row = 0; row < height; row++){
+        for (int col = 0; col < width; col++){
+            int value = getProperty(image, row, col);
+            histogram[value]++;
+        }
+    }
+
+    for (int i = 0; i < range; i++){
+        weight_background = 0;
+        weight_foreground = 0;
+        mu_background = 0;
+        mu_foreground = 0;
+        int mean_number = 0;
+
+        for (int j = 0; j <= i; j++){
+            weight_background += histogram[i];
+            mu_background += i * histogram[i];
+            mean_number += histogram[i];
+        }
+
+        mu_background /= mean_number;
+        weight_background /= range;
+        mean_number = 0;
+
+        for (int j = i + 1; j < range; j++){
+            weight_background += histogram[i];
+            mu_background += i * histogram[i];
+            mean_number += histogram[i];
+        }
+
+        mu_foreground /= mean_number;
+        weight_background /= range;
+
+        square_variance[i] = weight_background * weight_foreground * ((mu_background - mu_foreground) * (mu_background - mu_foreground));
+    }
+
+    for (int i = 0; i < range; i++){
+        if (square_variance[i] > highest_variance){
+            highest_variance = square_variance[i];
+            highest_variance_index = i;
+        }
+    }
+
+    return highest_variance_index;
+}
+
+unsigned char calcOtsuThreshold(unsigned char* image, unsigned char (*func)(unsigned char*, int, int), struct OperationState state){
+    switch (state.algo){
+        case MULTI_THREAD: break;
+        case GPU_ACCELERATED: break;
+        default: return calcOtsuThresholdSingleThread(image, func, state.width, state.height);
+    }
+
+    return 0;
+}
+
+unsigned char* maskLuminance(unsigned char* image, struct OperationState state){
+    int threshold;
+
+    if (state.arg1 == -1){
+        threshold = calcOtsuThreshold(image, state);
+    } else{
+        threshold = state.arg1;
+    }
+
+    switch (state.algo){
+        case MULTI_THREAD: break;
+        case GPU_ACCELERATED: break;
+        default: return applyMaskFunctionSingleThreaded(image, *calcLuminance, threshold, state.width, state.height);
+    }
+
+    return NULL;
+}
+
+unsigned char* maskBrightness(unsigned char* image, struct OperationState state){
+
+}
+
+unsigned char* maskRGB(unsigned char* image, struct OperationState state){
+
 }
