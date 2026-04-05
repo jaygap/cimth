@@ -454,8 +454,6 @@ unsigned char calcOtsuThresholdSingleThread(unsigned char* image, unsigned char 
     float highest_variance = -1;
     int highest_variance_index = 0;
 
-    // DONT FORGET TO INITALISE ARRAYS !!!
-
     for (int i = 0; i < range; i++){
         histogram[i] = 0;
         square_variance[i] = 0;
