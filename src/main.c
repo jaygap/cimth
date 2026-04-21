@@ -241,6 +241,9 @@ int main(int argc, char **argv){
         case MASK_BRIGHTNESS:
             image = maskBrightness(image, state);
             break;
+        case MASK_RGB:
+            image = maskRGB(image, state);
+            break;
         default: break;
     }
 
@@ -570,6 +573,42 @@ unsigned char* maskBrightness(unsigned char* image, struct OperationState state)
     return NULL;
 }
 
-unsigned char* maskRGB(unsigned char* image, struct OperationState state){
+unsigned char getRed(unsigned char red, unsigned char green, unsigned char blue){
+    return red;
+}
 
+unsigned char getGreen(unsigned char red, unsigned char green, unsigned char blue){
+    return green;
+}
+
+unsigned char getBlue(unsigned char red, unsigned char green, unsigned char blue){
+    return blue;
+}
+
+unsigned char* maskRGB(unsigned char* image, struct OperationState state){
+    int threshold;
+
+    unsigned char (*func)(unsigned char, unsigned char, unsigned char);
+
+    if (state.arg2 == 0){
+        func = &getRed;
+    } else if (state.arg2 == 1){
+        func = &getGreen;
+    } else{
+        func = &getBlue;
+    }
+
+    if (state.arg1 == -1){
+        threshold = calcOtsuThreshold(image, func, state);
+    } else{
+        threshold = state.arg1;
+    }
+
+    switch (state.algo){
+        case MULTI_THREAD: break;
+        case GPU_ACCELERATED: break;
+        default: return applyMaskFunctionSingleThreaded(image, func, threshold, state.width, state.height);
+    }
+
+    return NULL;
 }
