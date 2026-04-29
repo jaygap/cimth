@@ -1,9 +1,11 @@
+//convolutions include blurs and edge-detection algorithms
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "../inc/convolution.h"
 
-unsigned char* applyKernelToImageSingleThread(unsigned char* original, int* kernel, int kernel_size, int width, int height, int passes){
+unsigned char* applyBlurSingleThread(unsigned char* original, int* kernel, int kernel_size, int width, int height, int passes){
 
     unsigned char* altered = (unsigned char*)malloc(width * height * 4);
 
@@ -16,9 +18,9 @@ unsigned char* applyKernelToImageSingleThread(unsigned char* original, int* kern
         for (int y = 0; y < height; y++){
             for (int x = 0; x < width; x++){
                 if (p % 2 == 0){
-                    applyKernelToPixel(original, altered, kernel, kernel_size, x, y, width, height);
+                    blurPixel(original, altered, kernel, kernel_size, x, y, width, height);
                 } else{
-                    applyKernelToPixel(altered, original, kernel, kernel_size, x, y, width, height);
+                    blurPixel(altered, original, kernel, kernel_size, x, y, width, height);
                 }
             }
         }
@@ -33,8 +35,7 @@ unsigned char* applyKernelToImageSingleThread(unsigned char* original, int* kern
     return original;
 }
 
-//TODO MAKE THIS MORE GENERIC
-void applyKernelToPixel(unsigned char* original, unsigned char* altered, int* kernel, int kernel_size, int col, int row, int width, int height){
+void blurPixel(unsigned char* original, unsigned char* altered, int* kernel, int kernel_size, int col, int row, int width, int height){
     unsigned int red = 0, green = 0, blue = 0, alpha = 0, pixel_count = 0;
 
     for (int y = -kernel_size; y <= kernel_size; y++){
@@ -74,7 +75,7 @@ unsigned char* boxBlur(unsigned char* image, struct OperationState state){
     switch (state.algo){
         case MULTI_THREAD: break;
         case GPU_ACCELERATED: break;
-        default: return applyKernelToImageSingleThread(image, kernel, state.arg1, state.width, state.height, state.arg2);
+        default: return applyBlurSingleThread(image, kernel, state.arg1, state.width, state.height, state.arg2);
     }
 
     return NULL;
@@ -108,7 +109,24 @@ unsigned char* gaussianBlur(unsigned char* image, struct OperationState state){
     switch (state.algo){
         case MULTI_THREAD: break;
         case GPU_ACCELERATED: break;
-        default: return applyKernelToImageSingleThread(image, kernel, state.arg1, state.width, state.height, state.arg2);
+        default: return applyBlurSingleThread(image, kernel, state.arg1, state.width, state.height, state.arg2);
+    }
+
+    return NULL;
+}
+
+//TODO FIX ME PLEASE!!!
+//generalise applyKernelSingleThread so it takes in a function (for blurring or edge detection)
+
+unsigned char* edgeDetectionHorizontal(unsigned char* image, struct OperationState state){
+    int kernel[] = {-1, -1, -1,
+                    0, 0, 0,
+                    1, 1, 1};
+
+    switch (state.algo){
+        case MULTI_THREAD: break;
+        case GPU_ACCELERATED: break;
+        default: break;
     }
 
     return NULL;

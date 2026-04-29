@@ -6,4 +6,6 @@ link_directories(${CMAKE_SOURCE_DIR}/lib)
 
 add_link_options(-lm)
 
-add_executable(cimth src/main.c)
+file(GLOB SOURCES "src/*.c")
+
+add_executable(cimth ${SOURCES})

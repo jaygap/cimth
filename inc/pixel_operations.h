@@ -1,6 +1,9 @@
-unsigned char calcLuminance(unsigned char, unsigned char, unsigned char);
-unsigned char calcBrightness(unsigned char, unsigned char, unsigned char);
+#include <stdint.h>
 
-unsigned char getRed(unsigned char, unsigned char, unsigned char);
-unsigned char getGreen(unsigned char, unsigned char, unsigned char);
-unsigned char getBlue(unsigned char, unsigned char, unsigned char);
+uint32_t calcLuminance(uint32_t);
+uint32_t calcBrightness(uint32_t);
+
+uint32_t getRed(uint32_t);
+uint32_t getGreen(uint32_t);
+uint32_t getBlue(uint32_t);
+uint32_t getAlpha(uint32_t);

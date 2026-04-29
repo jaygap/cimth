@@ -3,10 +3,11 @@
 #include "../inc/pixel_operations.h"
 #include <string.h>
 
-unsigned char* applyMaskFunctionSingleThreaded(unsigned char* image, unsigned char (*maskFunction)(unsigned char, unsigned char, unsigned char), int threshold, int width, int height){
+unsigned char* applyMaskFunctionSingleThreaded(unsigned char* image, uint32_t (*maskFunction)(uint32_t), int threshold, int width, int height){
     for (int x = 0; x < width * height * 4; x += 4){
         unsigned char colour;
-        if (maskFunction(image[x], image[x + 1], image [x + 2]) >= threshold){
+
+        if ((maskFunction((image[x] << 24) + (image[x + 1] << 16) + (image[x + 2] << 8)) & 0xff) >= threshold){
             colour = 0;
         } else{
             colour = 255;
@@ -20,7 +21,7 @@ unsigned char* applyMaskFunctionSingleThreaded(unsigned char* image, unsigned ch
     return image;
 }
 
-unsigned char calcOtsuThresholdSingleThread(unsigned char* image, unsigned char (*getPixelProperty)(unsigned char, unsigned char, unsigned char), int width, int height){
+unsigned char calcOtsuThresholdSingleThread(unsigned char* image, uint32_t (*getPixelProperty)(uint32_t), int width, int height){
     const int range = 256;
     int histogram[range];
     double highest_variance = -1.0;
@@ -38,7 +39,7 @@ unsigned char calcOtsuThresholdSingleThread(unsigned char* image, unsigned char 
     for (int row = 0; row < height; row++){
         for (int col = 0; col < width; col++){
             int index = (row * width + col) * 4;
-            unsigned char value = getPixelProperty(image[index], image[index + 1], image[index + 2]);
+            unsigned char value = (getPixelProperty((image[index] << 24) + (image[index + 1] << 16) + (image[index + 2] << 8))) & 0xff;
             histogram[value]++;
         }
     }
@@ -74,7 +75,7 @@ unsigned char calcOtsuThresholdSingleThread(unsigned char* image, unsigned char 
     return highest_variance_index;
 }
 
-unsigned char calcOtsuThreshold(unsigned char* image, unsigned char (*func)(unsigned char, unsigned char, unsigned char), struct OperationState state){
+unsigned char calcOtsuThreshold(unsigned char* image, uint32_t (*func)(uint32_t), struct OperationState state){
     switch (state.algo){
         case MULTI_THREAD: break;
         case GPU_ACCELERATED: break;
@@ -123,7 +124,7 @@ unsigned char* maskBrightness(unsigned char* image, struct OperationState state)
 unsigned char* maskRGB(unsigned char* image, struct OperationState state){
     int threshold;
 
-    unsigned char (*func)(unsigned char, unsigned char, unsigned char);
+    uint32_t (*func)(uint32_t);
 
     if (state.arg2 == 0){
         func = &getRed;
