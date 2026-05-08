@@ -3,14 +3,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include "../inc/convolution.h"
+#include "../inc/pixel_operations.h"
+#include "../inc/mask.h"
 
-unsigned char* applyBlurSingleThread(unsigned char* original, int* kernel, int kernel_size, int width, int height, int passes){
+unsigned char* applyKernelSingleThread(unsigned char* original, void (*func)(unsigned char*, unsigned char*, int*, int, int, int, int, int), int* kernel, int kernel_size, int width, int height, int passes){
 
     unsigned char* altered = (unsigned char*)malloc(width * height * 4);
 
     if (!altered){
-        printf("Failed to allocate for image in heap.");
+        printf("Failed to allocate memory for image in heap.");
         return NULL;
     }
 
@@ -18,9 +21,9 @@ unsigned char* applyBlurSingleThread(unsigned char* original, int* kernel, int k
         for (int y = 0; y < height; y++){
             for (int x = 0; x < width; x++){
                 if (p % 2 == 0){
-                    blurPixel(original, altered, kernel, kernel_size, x, y, width, height);
+                    func(original, altered, kernel, kernel_size, x, y, width, height);
                 } else{
-                    blurPixel(altered, original, kernel, kernel_size, x, y, width, height);
+                    func(altered, original, kernel, kernel_size, x, y, width, height);
                 }
             }
         }
@@ -37,14 +40,15 @@ unsigned char* applyBlurSingleThread(unsigned char* original, int* kernel, int k
 
 void blurPixel(unsigned char* original, unsigned char* altered, int* kernel, int kernel_size, int col, int row, int width, int height){
     unsigned int red = 0, green = 0, blue = 0, alpha = 0, pixel_count = 0;
+    const int kernel_width = 2 * kernel_size + 1;
 
     for (int y = -kernel_size; y <= kernel_size; y++){
         for (int x = -kernel_size; x <= kernel_size; x++){
             if (col + x >= 0 && col + x < width && row + y >= 0 && row + y < height){
-                red += original[(col + x + (row + y) * width) * 4] * kernel[x + kernel_size + (y + kernel_size) * kernel_size];
-                green += original[(col + x + (row + y) * width) * 4 + 1] * kernel[x + kernel_size + (y + kernel_size) * kernel_size];
-                blue += original[(col + x + (row + y) * width) * 4 + 2] * kernel[x + kernel_size + (y + kernel_size) * kernel_size];
-                alpha += original[(col + x + (row + y) * width) * 4 + 3] * kernel[x + kernel_size + (y + kernel_size) * kernel_size];
+                red += original[(col + x + (row + y) * width) * 4] * kernel[x + kernel_size + (y + kernel_size) * kernel_width];
+                green += original[(col + x + (row + y) * width) * 4 + 1] * kernel[x + kernel_size + (y + kernel_size) * kernel_width];
+                blue += original[(col + x + (row + y) * width) * 4 + 2] * kernel[x + kernel_size + (y + kernel_size) * kernel_width];
+                alpha += original[(col + x + (row + y) * width) * 4 + 3] * kernel[x + kernel_size + (y + kernel_size) * kernel_width];
                 pixel_count += 1 * kernel[x + kernel_size + (y + kernel_size) * kernel_size];
             }
         }
@@ -75,7 +79,7 @@ unsigned char* boxBlur(unsigned char* image, struct OperationState state){
     switch (state.algo){
         case MULTI_THREAD: break;
         case GPU_ACCELERATED: break;
-        default: return applyBlurSingleThread(image, kernel, state.arg1, state.width, state.height, state.arg2);
+        default: return applyKernelSingleThread(image, &blurPixel, kernel, state.arg1, state.width, state.height, state.arg2);
     }
 
     return NULL;
@@ -109,25 +113,123 @@ unsigned char* gaussianBlur(unsigned char* image, struct OperationState state){
     switch (state.algo){
         case MULTI_THREAD: break;
         case GPU_ACCELERATED: break;
-        default: return applyBlurSingleThread(image, kernel, state.arg1, state.width, state.height, state.arg2);
+        default: return applyKernelSingleThread(image, &blurPixel, kernel, state.arg1, state.width, state.height, state.arg2);
     }
 
     return NULL;
 }
 
 //TODO FIX ME PLEASE!!!
-//generalise applyKernelSingleThread so it takes in a function (for blurring or edge detection)
+// not detecting edges
+
+void detectPixelEdge(unsigned char* original, unsigned char* altered, int* kernel, int kernel_size, int col, int row, int width, int height){
+    int red = 0, green = 0, blue = 0, alpha = 0, pixel_count = 0;
+    int weight = 0;
+    const int kernel_width = 2 * kernel_size + 1;
+
+    for (int y = -kernel_size; y <= kernel_size; y++){
+        for (int x = -kernel_size; x <= kernel_size; x++){
+            if (col + x >= 0 && col + x < width && row + y >= 0 && row + y < height){
+                red = original[(col + x + (row + y) * width) * 4];
+                green = original[(col + x + (row + y) * width) * 4 + 1];
+                blue = original[(col + x + (row + y) * width) * 4 + 2];
+                alpha = original[(col + x + (row + y) * width) * 4 + 3];
+                weight += ((calcLuminance((red << 24) + (green << 16) + (blue << 8) + alpha) & 0x0000ff00) >> 8) * kernel[x + kernel_size + (y + kernel_size) * kernel_width];
+                pixel_count++;
+            }
+        }
+    }
+
+    if (weight < 0){
+        weight = 0;
+    } else if (weight > 255){
+        weight = 255;
+    }
+
+    altered[(col + row * width) * 4] = weight;
+    altered[(col + row * width) * 4 + 1] = weight;
+    altered[(col + row * width) * 4 + 2] = weight;
+    altered[(col + row * width) * 4 + 3] = original[(col + row * width) * 4 + 3];
+}
 
 unsigned char* edgeDetectionHorizontal(unsigned char* image, struct OperationState state){
-    int kernel[] = {-1, -1, -1,
+    int kernel[] = {1, 2, 1,
                     0, 0, 0,
-                    1, 1, 1};
+                    -1, -2, -1};
 
     switch (state.algo){
         case MULTI_THREAD: break;
         case GPU_ACCELERATED: break;
-        default: break;
+        default: image = applyKernelSingleThread(image, &detectPixelEdge, kernel, 1, state.width, state.height, 1);
     }
 
-    return NULL;
+    return image;
+}
+
+unsigned char* edgeDetectionVertical(unsigned char* image, struct OperationState state){
+    int kernel[] = { -1, 0, 1,
+                     -2, 0, 2,
+                     -1, 0, 1};
+
+    switch (state.algo){
+        case MULTI_THREAD: break;
+        case GPU_ACCELERATED: break;
+        default: image = applyKernelSingleThread(image, &detectPixelEdge, kernel, 1, state.width, state.height, 1);
+    }
+
+    return image;
+}
+
+void detectSobelEdge(unsigned char* original, unsigned char* altered, int* NULL_DO_NOT_USE, int kernel_size, int col, int row, int width, int height){
+    int horizontal_kernel[] = {1, 2, 1,
+                               0, 0, 0,
+                               -1, -2, -1};
+
+    int vertical_kernel[] =  {-1, 0, 1,
+                              -2, 0, 2,
+                              -1, 0, 1};
+
+
+    int red = 0, green = 0, blue = 0, alpha = 0, pixel_count = 0;
+    int horizontal_weight = 0, vertical_weight = 0, combined_weight = 0;
+    const int kernel_width = 2 * kernel_size + 1;
+
+    for (int y = -kernel_size; y <= kernel_size; y++){
+        for (int x = -kernel_size; x <= kernel_size; x++){
+            if (col + x >= 0 && col + x < width && row + y >= 0 && row + y < height){
+                red = original[(col + x + (row + y) * width) * 4];
+                green = original[(col + x + (row + y) * width) * 4 + 1];
+                blue = original[(col + x + (row + y) * width) * 4 + 2];
+                alpha = original[(col + x + (row + y) * width) * 4 + 3];
+                horizontal_weight += ((calcLuminance((red << 24) + (green << 16) + (blue << 8) + alpha) & 0x0000ff00) >> 8) * horizontal_kernel[x + kernel_size + (y + kernel_size) * kernel_width];
+                vertical_weight += ((calcLuminance((red << 24) + (green << 16) + (blue << 8) + alpha) & 0x0000ff00) >> 8) * vertical_kernel[x + kernel_size + (y + kernel_size) * kernel_width];
+                pixel_count++;
+            }
+        }
+    }
+
+    combined_weight = sqrt(horizontal_weight * horizontal_weight + vertical_weight * vertical_weight);
+
+    if (combined_weight < 0){
+        combined_weight = 0;
+    } else if (combined_weight > 255){
+        combined_weight = 255;
+    }
+
+    altered[(col + row * width) * 4] = combined_weight;
+    altered[(col + row * width) * 4 + 1] = combined_weight;
+    altered[(col + row * width) * 4 + 2] = combined_weight;
+    altered[(col + row * width) * 4 + 3] = original[(col + row * width) * 4 + 3];
+}
+
+unsigned char* edgeDetectionSobel(unsigned char* image, struct OperationState state){
+    //no kernel defined as uses specific sobel edge detection function
+
+    switch (state.algo){
+        case MULTI_THREAD: break;
+        case GPU_ACCELERATED: break;
+        default: image = applyKernelSingleThread(image, &detectSobelEdge, NULL, 1, state.width, state.height, 1);
+    }
+
+    return image;
 }
