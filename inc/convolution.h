@@ -16,7 +16,5 @@ unsigned char* edgeDetectionVertical(unsigned char*, struct OperationState);
 unsigned char* edgeDetectionSobel(unsigned char*, struct OperationState);
 unsigned char* edgeDetectionCanny(unsigned char*, struct OperationState);
 
-void detectEdgeCanny(unsigned char*, unsigned char*, int*, int, int, int, int, int);
 void detectSobelEdge(unsigned char*, unsigned char*, int*, int, int, int, int, int);
 void detectPixelEdge(unsigned char*, unsigned char*, int*, int, int, int, int ,int);
-unsigned char* detectEdgesSingleThread(unsigned char*, uint32_t (*)(uint32_t), int*, int, int, int, int, int);

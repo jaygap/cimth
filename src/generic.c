@@ -141,6 +141,14 @@ struct OperationState parseArgs(int argc, char** argv, int* status){
         state.include_alpha = 1;
         *status = 0;
         return state;
+    } else if (strcmp(argv[1], "--mode=canny-edge") == 0){
+        state.mode = EDGE_DETECTION_CANNY;
+        state.algo = SINGLE_THREAD;
+        state.input_file = argv[2];
+        state.output_file = argv[3];
+        state.include_alpha = 1;
+        *status = 0;
+        return state;
     }
 
     if (argc > 5 && (strcmp(argv[2], "--single-threaded") == 0 || strcmp(argv[2], "-s") == 0)){
@@ -195,6 +203,8 @@ unsigned char* performOperation(unsigned char* image, struct OperationState stat
         case EDGE_DETECTION_SOBEL:
             image = edgeDetectionSobel(image, state);
             break;
+        case EDGE_DETECTION_CANNY:
+            image = edgeDetectionCanny(image, state);
         default:
             image = NULL;
             break;
