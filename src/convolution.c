@@ -348,18 +348,13 @@ unsigned char* detectCannyEdgeSingleThread(unsigned char* image, struct Operatio
     }
 
     // 4. double thresholding
-    unsigned char otsu_threshold = calcOtsuThresholdSingleThread(image, &calcLuminance, state.width, state.height);
-
-    int lower_threshold = 255 / 4;
-    int upper_threshold = 255;
-
-    if (lower_threshold * 3 > 255){
-        upper_threshold = 255;
-    }
+    int lower_threshold = 0.1 * 255;
+    int upper_threshold = 0.3 * 255;
 
     // 5. hysteresis
     for (int i = 0; i < width * height; i++){
         bool real_edge = false;
+
         if (gradients[i] <= lower_threshold){
             real_edge = false;
         } else if (gradients[i] > lower_threshold && gradients[i] <= upper_threshold){
@@ -370,8 +365,6 @@ unsigned char* detectCannyEdgeSingleThread(unsigned char* image, struct Operatio
 
                 if (gradients[i + x - 1] > upper_threshold || gradients[i + x] > upper_threshold || gradients[i + x + 1] > upper_threshold){
                     real_edge = true;
-                } else {
-                    real_edge = false;
                 }
             }
         } else {
@@ -379,10 +372,11 @@ unsigned char* detectCannyEdgeSingleThread(unsigned char* image, struct Operatio
         }
 
         if (real_edge){
-            image[i * 4] = 255;
-            image[i * 4 + 1] = 255;
-            image[i * 4 + 2] = 255;
+            image[i * 4] = gradients[i];
+            image[i * 4 + 1] = gradients[i];
+            image[i * 4 + 2] = gradients[i];
             image[i * 4 + 3] = 255;
+            gradients[i] = upper_threshold + 1;
         } else{
             image[i * 4] = 0;
             image[i * 4 + 1] = 0;
