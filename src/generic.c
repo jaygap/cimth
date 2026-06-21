@@ -3,6 +3,7 @@
 #include "../inc/convolution.h"
 #include "../inc/greyscale.h"
 #include "../inc/mask.h"
+#include "../inc/pixel_sorting.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -149,6 +150,14 @@ struct OperationState parseArgs(int argc, char** argv, int* status){
         state.include_alpha = 1;
         *status = 0;
         return state;
+    } else if (strcmp(argv[1], "--mode=horizontal-sort") == 0){
+        state.mode = PIXEL_SORT_HORIZONTAL;
+        state.algo = SINGLE_THREAD;
+        state.input_file = argv[2];
+        state.output_file = argv[3];
+        state.include_alpha = 1;
+        *status = 0;
+        return state;
     }
 
     if (argc > 5 && (strcmp(argv[2], "--single-threaded") == 0 || strcmp(argv[2], "-s") == 0)){
@@ -205,6 +214,10 @@ unsigned char* performOperation(unsigned char* image, struct OperationState stat
             break;
         case EDGE_DETECTION_CANNY:
             image = edgeDetectionCanny(image, state);
+            break;
+        case PIXEL_SORT_HORIZONTAL:
+            image = sortHorizontal(image, state);
+            break;
         default:
             image = NULL;
             break;
